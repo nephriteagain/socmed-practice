@@ -1,8 +1,8 @@
 import {useState, useEffect} from 'react'
 import './App.css';
 import { BrowserRouter as Router,  Routes, Route, Link } from 'react-router-dom'
-
-import { deleteDoc, doc, addDoc, collection, Timestamp, updateDoc } from 'firebase/firestore';
+import { v4 as uuid } from 'uuid';
+import { deleteDoc, doc, addDoc, collection, Timestamp, updateDoc, arrayUnion, arrayRemove, getDocs, setDoc } from 'firebase/firestore';
 import { db, auth } from './firebase'
 
 
@@ -10,7 +10,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import CreatePost from './pages/CreatePost';
 import Profile from './pages/Profile';
-import { getDocs } from 'firebase/firestore';
+
 
 function App() {
 
@@ -18,30 +18,47 @@ function App() {
   const [ isAuth, setIsAuth ] = useState(localStorage.getItem("isAuth"))
   const [ userId, setUserId ] = useState(localStorage.getItem('userId'))
   const [ postList, setPostList ] = useState([])
+  const [ myPost, setmyPost ] = useState([])
 
   const [title, setTitle] = useState('')
   const [postText, setPostText] = useState('')
 
-  const postsCollectionRef = collection(db, 'post')
 
 
     const createPost = async () => {
         if ( title.length > 0 && postText.length > 1 && postText.length <= 500 ) {
 
-        
-        await addDoc(postsCollectionRef, {
-            title,
+        const uniqueId = uuid()
+        await setDoc(doc(db, 'post', uniqueId), {
+            title,  
             postText,
-            likes: 0,
+            likeList: [],
             date: Timestamp.fromDate(new Date()),
             author: {
                 name: auth.currentUser.displayName,
                 id: auth.currentUser.uid
             }
         })
-        setReFetch(true)
-        setPostText('')
-        setTitle('')
+        .then(() => {
+          setDoc(doc(db, `profilePost-${auth.currentUser.uid}`, uniqueId), {
+            title,  
+            postText,
+            likeList: [],
+            date: Timestamp.fromDate(new Date()),
+            author: {
+                name: auth.currentUser.displayName,
+                id: auth.currentUser.uid
+            }
+        })
+        }).then(() => {
+          setReFetch(true)
+          setPostText('')
+          setTitle('')
+          console.log('post created')
+        })
+        
+      
+
       } 
       if (title.length === 0 || postText.length === 0) {
         alert('Title or Post cannot be empty!!!')
@@ -54,43 +71,67 @@ function App() {
     }
 
 
-    const likePost = async (id, likes) => {
+    const likePost = async (postId, likeList, personWhoLiked, personName) => {
       if (isAuth) {
+        const userDoc = doc(db, 'post', postId)
+        const userProfileDoc = doc(db, `profilePost-${auth.currentUser.uid}`, postId)
         
-        const userDoc = doc(db, 'post', id)
-        const newFields = { likes: likes + 1 }
-        await updateDoc(userDoc, newFields).then((res) => {
-          setReFetch(true)
+        const notYetLiked = likeList.some((likes) => {
+          return likes.likerId === personWhoLiked
         })
+
+        
+        if (!notYetLiked) {
+          await updateDoc(userDoc, {
+            likeList: arrayUnion({
+              likerId: personWhoLiked,
+              likerName: personName
+            })
+          }).then(() => {
+            updateDoc(userProfileDoc, {
+              likeList: arrayUnion({
+                likerId: personWhoLiked,
+                likerName: personName
+              })
+            })
+          }).then(() => setReFetch(true))
+
+        } else {
+          await updateDoc(userDoc, {
+            likeList: arrayRemove({
+              likerId: personWhoLiked,
+              likerName: personName
+            })
+          }).then(() => {
+            updateDoc(userProfileDoc, {
+              likeList: arrayRemove({
+                likerId: personWhoLiked,
+                likerName: personName
+              })
+            })
+          }).then(() => setReFetch(true))
+
+        }
       }
     }
 
 
-
-  const changeColor = (e, likes) => {
-    if (isAuth) {
-      if (likes.length) {
-        e.target.style.color = 'orange'
-      } else {
-        e.target.style.color = 'yellow'
-      }
-    }
-  }
 
 
     const deletePost = async (id) => {
     const postDoc = doc(db, "post", id)
-    await deleteDoc(postDoc)
+    const ProfilePostDoc = doc(db, `profilePost-${auth.currentUser.uid}`, id)
+    await deleteDoc(postDoc).then(() => deleteDoc(ProfilePostDoc))
     setReFetch(true)
   }
 
   // this useState is to prevent and infinite fetching bug idk how to fix lul
     useEffect(()=> {
-    if (reFetch) {
+      if (reFetch) {
+      const postsCollectionRef = collection(db, 'post')
       setReFetch(false)
       const getPosts = async () => {
       const data = await getDocs(postsCollectionRef)
-
       setPostList(
         data.docs
         .map((doc) => ({...doc.data(), id: doc.id}))
@@ -100,6 +141,22 @@ function App() {
       )
     }
     getPosts()
+    const getMyPosts = async () => {
+      if (isAuth === true) {
+        const profilePostCollectionRef =  collection(db, `profilePost-${auth.currentUser.uid}`)
+        const data = await getDocs(profilePostCollectionRef)
+        setmyPost(
+          data.docs
+          .map((doc) => ({...doc.data(), id: doc.id}))
+          .sort((a, b) => { 
+            return  b.date - a.date  
+          })
+        )
+      }
+      
+      
+    }
+    getMyPosts()
     }
   }, [reFetch])
   
@@ -125,7 +182,7 @@ function App() {
             userId={userId} 
             deletePost={deletePost}
             likePost={likePost}
-            changeColor={changeColor}
+
           />}
         />
         <Route path='/createpost' element={
@@ -142,6 +199,7 @@ function App() {
         <Route path='/login' element={
           <Login 
             setIsAuth={setIsAuth} 
+            setUserId={setUserId}
           />} 
         /> 
       }
@@ -152,7 +210,10 @@ function App() {
             userId={userId} 
             deletePost={deletePost}
             likePost={likePost}
-            changeColor={changeColor}
+            myPost={myPost}
+            setmyPost={setmyPost}
+            reFetch={reFetch}
+            setReFetch={setReFetch}
           />} 
         />
       </Routes>

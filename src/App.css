@@ -366,6 +366,7 @@ hr {
   color: yellow;
   font-size: 32px;
   transition: transform 0.3s ease-in-out;
+  transition: color 0.2s ease-in-out;
 }
 
 .star:hover {
@@ -381,8 +382,51 @@ hr {
 .likes {
   color: var(--primary-font);
   font-size: 1.rem;
-  padding-left: 1rem;
+  margin-left: 1rem;
+  position: relative;
+  cursor: pointer;
+  text-align: center;
+  padding-inline: 0.25rem;
+  border-radius: 0.25rem;
+  border: none;
+  transition: border 0.5s ease-in-out;
+  transition-delay: 1s;
 }
+
+.likes:hover {
+  border: 1px solid yellow;
+
+}
+
+.likeList {
+  position: absolute;
+  z-index: 1000;
+  background-color: #ebebeb;
+  color: var(--primary);
+  font-size: 0.66rem;
+  padding: 0.5rem;
+  width: clamp(5rem, 20vw, 15rem);
+  right: 0;
+  bottom: 0%;
+  transform: translateY(100%);
+  border-radius: 0.5rem;
+  line-height: 0.25rem;
+  visibility: hidden;
+  opacity: 0;
+  transition: all 0.2s ease-in-out;
+  transition-delay: 1s;
+}
+
+.likes:hover + .likeList {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.showList {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
 
 
 @keyframes myanimation {

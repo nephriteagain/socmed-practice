@@ -5,7 +5,7 @@ import {
 } from 'firebase/auth'
 import { useNavigate } from 'react-router-dom'
 
-function Login({setIsAuth}) {
+function Login({setIsAuth, setUserId}) {
     let navigate = useNavigate()
 
 
@@ -16,8 +16,8 @@ function Login({setIsAuth}) {
                 setIsAuth(true)
 
                 localStorage.setItem("userId", auth.currentUser.uid)
-                setIsAuth(auth.currentUser.uid)
-
+                setUserId(auth.currentUser.uid)
+                
                 navigate('/')
             })
     }
